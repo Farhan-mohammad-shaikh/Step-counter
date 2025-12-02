@@ -18,11 +18,12 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stdio.h"
+#include <string.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdio.h"
-#include <stdint.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,6 +50,8 @@ PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
 
+#define adxl_address 0x53<<1
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,6 +66,63 @@ static void MX_I2C1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+uint8_t data_rec[6];
+
+int16_t x,y,z;
+char uart_buf[50];
+
+
+void adxl_write (uint8_t reg, uint8_t value)
+{
+	uint8_t data[2];
+	data[0] = reg;
+	data [1] = value;
+
+	HAL_I2C_Master_Transmit(&hi2c1, adxl_address,data , 2, 10);
+
+}
+
+
+void adxl_read (uint8_t reg, uint8_t numberofbytes)
+{
+	HAL_I2C_Mem_Read(&hi2c1, adxl_address, reg, 1, data_rec, numberofbytes, 100);
+
+}
+
+void adxl_init(void)
+{
+	adxl_read (0x00, 1);
+	char msg[30];
+	sprintf(msg, "DEVID: %d\r\n", data_rec[0]);
+	HAL_UART_Transmit(&huart3, (uint8_t*)msg, sizeof(msg), 100);
+
+	adxl_write(0x2D, 0);
+	adxl_write(0x2C, 0x0A);
+	adxl_write(0x2D, 0x08);
+	adxl_write(0x31, 0x08);
+
+}
+
+float z_filtered = 0;
+
+uint32_t last_step_time = 0;
+float prev_z = 0;
+int steps = 0;
+
+void low_pass_filter(float new_z)
+{
+    float alpha = 0.2;   // 0–1 (lower = smoother)
+    z_filtered = (alpha * new_z) + (1 - alpha) * z_filtered;
+}
+
+float baseline = 1.0;
+
+void update_baseline(float z)
+{
+    float beta = 0.01; // very slow filter (1%)
+    baseline = beta * z + (1 - beta) * baseline;
+}
 
 /* USER CODE END 0 */
 
@@ -100,6 +160,11 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
+  adxl_init();
+
+
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -107,11 +172,50 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	 adxl_read (0x32,6);
+	 x = (int16_t)(data_rec[1]<<8) | data_rec[0];
+	 y = (int16_t)(data_rec[3]<<8) | data_rec[2];
+	 z = (int16_t)(data_rec[5]<<8) | data_rec[4];
+
+	 float az_g = z * 0.004;
+	 low_pass_filter(az_g);
+	 update_baseline(z_filtered);
+
+	 float step_threshold  = baseline + 0.10;
+	 float reset_threshold = baseline - 0.10;
+
+	     uint32_t now = HAL_GetTick();
+
+	     // Step detection logic
+	     if (prev_z < step_threshold && z_filtered >= step_threshold)
+	     {
+	         if (now - last_step_time > 300)   // 300 ms debounce
+	         {
+	             steps++;
+	             last_step_time = now;
+
+	             sprintf(uart_buf, "STEP: %d\r\n", steps);
+	             HAL_UART_Transmit(&huart3, (uint8_t*)uart_buf, strlen(uart_buf), 100);
+	         }
+	     }
+
+	     prev_z = z_filtered;
+
+	     // Debug print
+//	     sprintf(uart_buf, "Z: %.3f  Base: %.3f  Filt: %.3f  Th: %.3f\r\n",
+//	             az_g, baseline, z_filtered, step_threshold);
+//	     HAL_UART_Transmit(&huart3, (uint8_t*)uart_buf, strlen(uart_buf), 100);
+
+	     HAL_Delay(50);
+	 }
 
     /* USER CODE BEGIN 3 */
   }
+
+
+
   /* USER CODE END 3 */
-}
+
 
 /**
   * @brief System Clock Configuration
@@ -352,4 +456,6 @@ void assert_failed(uint8_t *file, uint32_t line)
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
+
+
 #endif /* USE_FULL_ASSERT */
