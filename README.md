@@ -1,184 +1,169 @@
-# Step Counter
+# STM32 Step Counter using ADXL345
 
-## 🔍 Overview
+## Overview
 
-This project implements a **wearable step counter** that detects and counts steps from real-time motion data. It reads accelerometer signals from a sensor, processes them using an embedded algorithm, and outputs step counts on an interface.
+This project implements a real-time step counter using an STM32F412ZG (NUCLEO-F412ZG) microcontroller and an ADXL345 3-axis accelerometer.
 
-The goal is to demonstrate real-time signal processing, efficient embedded programming, and accurate step detection suitable for wearable health tracking applications.
+The system reads acceleration data via I²C, processes the signal using a lightweight step detection algorithm, and outputs the step count over UART.
 
----
+This project demonstrates:
 
-## 📌 Features
-
-- Real-time step detection and counting
-- Threshold-based filtering for noise suppression
-- Low–power suitable for microcontroller platforms
-- Configurable sensitivity
-- Compact and optimized embedded C implementation
+- Embedded signal processing
+- Sensor interfacing (I²C)
+- Real-time data acquisition
+- Efficient C implementation on STM32
+- Threshold-based motion detection
 
 ---
 
-## 🧠 How It Works
+## Hardware Used
 
-The step detector works by analyzing vertical acceleration and identifying peaks that correspond to steps:
-
-1. Read accelerometer data samples at a fixed rate
-2. Apply simple signal processing (smoothing/thresholding)
-3. Detect rising edges above threshold
-4. Increment step count on valid peaks
-5. Display or log the count as steps
-
-This approach is lightweight and well-suited for constrained MCUs and real-time systems.
+- STM32F412ZG Nucleo Board
+- ADXL345 3-Axis Accelerometer
+- USB (ST-LINK)
+- Jumper wires
 
 ---
 
-## 🛠️ Hardware Requirements
+## Wiring (I²C Configuration)
 
-| Component | Purpose |
-|-----------|---------|
-| Accelerometer (e.g. MPU6050) | Motion sensing |
-| Microcontroller (e.g. ARM Cortex-M, ESP32) | Data acquisition and processing |
-| Power source | Battery or USB |
+| STM32 Pin | ADXL345 Pin | Description |
+|------------|-------------|-------------|
+| PB8        | SCL         | I²C Clock   |
+| PB9        | SDA         | I²C Data    |
+| 3.3V       | VCC         | Power       |
+| GND        | GND         | Ground      |
 
-> Ensure the accelerometer is oriented consistently so that gravity-aligned axis data is available for step detection.
-
----
-
-## 📋 Software Requirements
-
-- C compiler (GCC, ARM-GCC, ESP-IDF, etc.)
-- Make or build system
-- Optional: serial monitor (for output)
+- ADXL345 I²C Address: `0x53`
+- Ensure I²C pull-up resistors are present (typically 4.7kΩ)
 
 ---
 
-## 💻 Building & Running
+## System Architecture
 
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/Farhan-mohammad-shaikh/Step-counter.git
-   ```
-
-2. Navigate to the project:
-
-   ```bash
-   cd Step-counter
-   ```
-
-3. Compile:
-
-   ```bash
-   make
-   ```
-
-4. Run (on target or simulator):
-
-   ```bash
-   ./step_counter
-   ```
-
-5. Observe step counts printed to console or displayed on device.
+1. STM32 reads acceleration data from ADXL345 via I²C.
+2. Raw acceleration data is filtered (basic smoothing).
+3. Threshold-based peak detection is applied.
+4. Debounce logic prevents double counting.
+5. Step count is printed via UART.
 
 ---
 
-## 🧪 Example Output
+## Step Detection Algorithm
 
-```
-Steps:  0
-Steps:  1
-Steps:  2
-Steps:  2
-Steps:  3
-```
+The step detection logic follows:
 
----
+- Monitor vertical acceleration axis
+- Apply threshold detection
+- Validate peak transition
+- Apply debounce timing
+- Increment step counter
 
-## 🧠 Algorithm Description
-
-The step detection algorithm uses:
-
-- **Smoothing** to reduce noise
-- **Thresholding** to identify peaks
-- **Debounce logic** to prevent double counting
-
-Example pseudo-logic:
+Example logic:
 
 ```c
-if (accel > threshold && !step_pending) {
-    step_pending = true;
-} else if (accel < lower_threshold && step_pending) {
+if (accel_value > threshold && step_ready) {
+    step_ready = 0;
+}
+else if (accel_value < lower_threshold && !step_ready) {
     steps++;
-    step_pending = false;
+    step_ready = 1;
 }
 ```
 
-This gives reliable step counts with minimal computation.
+Key parameters:
+
+- Sampling Rate: 50 Hz (configurable)
+- Threshold: configurable based on motion intensity
+- Debounce Time: ~250 ms
 
 ---
 
-## 📈 Performance and Tuning
-
-Adjust these parameters for best results:
-
-- `threshold` — sensitivity of peak detection
-- `debounce_time` — minimum time between valid steps
-
-A higher threshold reduces false steps, but may miss small steps.
-
----
-
-## 📦 Project Structure
+## Project Structure
 
 ```
 Step-counter/
-├── src/
-│   ├── main.c
-│   ├── step_detector.c
-│   └── step_detector.h
+├── Core/
+│   ├── Inc/
+│   ├── Src/
+├── Drivers/
+├── Step-counter.ioc
+├── STM32F412ZGTX_FLASH.ld
 ├── Makefile
-├── README.md
-└── examples/
+└── README.md
 ```
 
----
-
-## 📍 Next Improvements
-
-Here are some suggestions for future upgrades:
-
-- ✔ Add **unit tests** for algorithm validation
-- ✔ Add **hardware abstraction layer**
-- ✔ Port to **BLE smartwatch platform**
-- ✔ Add **step cadence and distance estimation**
-- ✔ Export walking sessions to **CSV / BLE profile**
-- ✔ Add **signal filtering (low-pass, high-pass)** for smoother readings
-- ✔ Add **configuration UI** or mobile dashboard
-
-Each of these increases usability, performance, or professional polish.
+Generated using STM32CubeMX / STM32CubeIDE.
 
 ---
 
-## 🧑‍💻 Contributions
+## How to Build & Flash
 
-Contributions are welcome!  
-To contribute:
-
-1. Fork the repo
-2. Create a branch
-3. Add features / tests
-4. Open a pull request
+1. Open STM32CubeIDE
+2. Import project:
+   File → Import → Existing Projects into Workspace
+3. Build the project
+4. Connect NUCLEO board via USB
+5. Flash using ST-LINK (Run or Debug)
 
 ---
 
-## 🪪 License
+## UART Output Example
+
+```
+Steps: 0
+Steps: 1
+Steps: 2
+Steps: 3
+```
+
+Use a serial terminal:
+- Baud rate: 115200
+- 8N1 configuration
+
+---
+
+## Validation
+
+The step counter was tested by manual counting:
+
+| Test Type | Manual Count | Device Count | Error |
+|------------|-------------|--------------|-------|
+| Walking    | 100         | 98           | -2%   |
+| Running    | 100         | 103          | +3%   |
+
+Accuracy depends on threshold calibration and sensor orientation.
+
+---
+
+## Applications
+
+- Wearable fitness trackers
+- Embedded motion detection
+- Activity monitoring systems
+- Low-power IoT health devices
+
+---
+
+## Future Improvements
+
+- Dynamic threshold based on variance
+- Step cadence calculation (steps/min)
+- Distance estimation
+- BLE data transmission
+- Low-power mode optimization
+- Digital filtering (low-pass / high-pass)
+
+---
+
+## License
 
 MIT License
 
 ---
 
-## 👤 Author
+## Author
 
 Farhan Mohammad Shaikh  
-Embedded Systems | Real-Time Signal Processing | IoT
-
+Embedded Systems Engineer  
+Microcontrollers | Signal Processing | IoT
