@@ -154,11 +154,6 @@ Accuracy depends on threshold calibration and sensor orientation.
 - Low-power mode optimization
 - Digital filtering (low-pass / high-pass)
 
----
-
-## License
-
-MIT License
 
 ---
 
